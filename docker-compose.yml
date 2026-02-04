@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: live-commerce-fe
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:19091
+      - NEXT_PUBLIC_WS_URL=ws://localhost:19050
+    networks:
+      - live-commerce-network
+
+networks:
+  live-commerce-network:
+    external: true
+    name: live-commerce_8do-network
