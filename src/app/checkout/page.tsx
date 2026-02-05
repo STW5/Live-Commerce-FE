@@ -9,18 +9,30 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useCartStore } from '@/lib/stores/cart';
 import { formatPrice } from '@/lib/utils';
+import { paymentApi } from '@/lib/api/services/payment';
+import { orderApi } from '@/lib/api/services/order';
+import { Loader2 } from 'lucide-react';
+import { useAuthStore } from '@/lib/stores/auth';
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { items, getTotalPrice, clearCart } = useCartStore();
+  const { isAuthenticated } = useAuthStore();
+  const [isProcessing, setIsProcessing] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
     address: '',
     detailAddress: '',
     request: '',
-    paymentMethod: 'card',
+    paymentMethod: 'kakaopay',
   });
+
+  // 로그인 확인
+  if (!isAuthenticated()) {
+    router.push('/login?redirect=/checkout');
+    return null;
+  }
 
   if (items.length === 0) {
     return (
@@ -33,11 +45,69 @@ export default function CheckoutPage() {
     );
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('주문이 완료되었습니다!');
-    clearCart();
-    router.push('/orders');
+
+    if (!formData.name || !formData.phone || !formData.address || !formData.detailAddress) {
+      alert('배송 정보를 모두 입력해주세요.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      // 1. 주문 생성
+      const orderItems = items.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.price,
+      }));
+
+      const orderData = {
+        items: orderItems,
+        shippingAddress: {
+          recipientName: formData.name,
+          phoneNumber: formData.phone,
+          address: formData.address,
+          detailAddress: formData.detailAddress,
+          request: formData.request,
+        },
+        totalAmount: getTotalPrice(),
+      };
+
+      const order = await orderApi.createOrder(orderData);
+      console.log('주문 생성 완료:', order);
+
+      // 2. 결제 준비 (카카오페이)
+      if (formData.paymentMethod === 'kakaopay') {
+        const itemNames = items.map(item => item.name).join(', ');
+        const paymentData = {
+          orderId: order.orderId,
+          amount: getTotalPrice(),
+          itemName: items.length > 1 ? `${items[0].name} 외 ${items.length - 1}건` : items[0].name,
+        };
+
+        const paymentReady = await paymentApi.readyPayment(paymentData);
+        console.log('결제 준비 완료:', paymentReady);
+
+        // 3. 주문 정보를 세션에 저장 (콜백에서 사용)
+        sessionStorage.setItem('checkout_order', JSON.stringify({
+          orderId: order.orderId,
+          tid: paymentReady.tid,
+        }));
+
+        // 4. 카카오페이 결제 페이지로 리다이렉트
+        window.location.href = paymentReady.next_redirect_pc_url;
+      } else {
+        // 다른 결제 수단 (미구현)
+        alert('현재 카카오페이만 지원됩니다.');
+        setIsProcessing(false);
+      }
+    } catch (error: any) {
+      console.error('결제 처리 실패:', error);
+      alert(error.response?.data?.message || '결제 처리 중 오류가 발생했습니다.');
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -67,16 +137,17 @@ export default function CheckoutPage() {
                 <h2 className="mb-4 text-xl font-bold">배송 정보</h2>
                 <div className="space-y-4">
                   <div>
-                    <Label htmlFor="name">받는 사람</Label>
+                    <Label htmlFor="name">받는 사람 *</Label>
                     <Input
                       id="name"
                       required
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="홍길동"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="phone">연락처</Label>
+                    <Label htmlFor="phone">연락처 *</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -87,17 +158,17 @@ export default function CheckoutPage() {
                     />
                   </div>
                   <div>
-                    <Label htmlFor="address">주소</Label>
+                    <Label htmlFor="address">주소 *</Label>
                     <Input
                       id="address"
                       required
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      placeholder="기본 주소"
+                      placeholder="서울시 강남구 테헤란로 123"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="detailAddress">상세 주소</Label>
+                    <Label htmlFor="detailAddress">상세 주소 *</Label>
                     <Input
                       id="detailAddress"
                       required
@@ -105,7 +176,7 @@ export default function CheckoutPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, detailAddress: e.target.value })
                       }
-                      placeholder="상세 주소"
+                      placeholder="101동 1001호"
                     />
                   </div>
                   <div>
@@ -122,18 +193,36 @@ export default function CheckoutPage() {
 
               <Card className="p-6">
                 <h2 className="mb-4 text-xl font-bold">결제 수단</h2>
-                <RadioGroup value={formData.paymentMethod} onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="card" id="card" />
-                    <Label htmlFor="card">신용/체크카드</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
+                <RadioGroup
+                  value={formData.paymentMethod}
+                  onValueChange={(value) => setFormData({ ...formData, paymentMethod: value })}
+                >
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg">
                     <RadioGroupItem value="kakaopay" id="kakaopay" />
-                    <Label htmlFor="kakaopay">카카오페이</Label>
+                    <Label htmlFor="kakaopay" className="flex-1 cursor-pointer">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base font-medium">카카오페이</span>
+                        <span className="text-xs text-gray-500">(현재 지원)</span>
+                      </div>
+                    </Label>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="transfer" id="transfer" />
-                    <Label htmlFor="transfer">무통장입금</Label>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg opacity-50">
+                    <RadioGroupItem value="card" id="card" disabled />
+                    <Label htmlFor="card" className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">신용/체크카드</span>
+                        <span className="text-xs text-gray-500">(준비중)</span>
+                      </div>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg opacity-50">
+                    <RadioGroupItem value="transfer" id="transfer" disabled />
+                    <Label htmlFor="transfer" className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">무통장입금</span>
+                        <span className="text-xs text-gray-500">(준비중)</span>
+                      </div>
+                    </Label>
                   </div>
                 </RadioGroup>
               </Card>
@@ -165,8 +254,20 @@ export default function CheckoutPage() {
                   <span className="text-primary">{formatPrice(getTotalPrice())}</span>
                 </div>
 
-                <Button type="submit" className="w-full" size="lg">
-                  {formatPrice(getTotalPrice())} 결제하기
+                <Button
+                  type="submit"
+                  className="w-full"
+                  size="lg"
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      처리중...
+                    </>
+                  ) : (
+                    `${formatPrice(getTotalPrice())} 결제하기`
+                  )}
                 </Button>
 
                 <p className="mt-4 text-xs text-gray-500 text-center">

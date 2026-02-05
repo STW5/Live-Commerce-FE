@@ -21,22 +21,22 @@ export interface AuthResponse {
 
 export const authApi = {
   signUp: async (data: SignUpRequest) => {
-    const response = await apiClient.post('/api/v1/auth/signup', data);
+    const response = await apiClient.post('/api/v2/auth/signup', data);
     return response.data;
   },
 
   signIn: async (data: SignInRequest) => {
-    const response = await apiClient.post<{ data: AuthResponse }>('/api/v1/auth/signin', data);
+    const response = await apiClient.post<{ data: AuthResponse }>('/api/v2/auth/signin', data);
     return response.data.data;
   },
 
   logout: async () => {
-    const response = await apiClient.post('/api/v1/auth/logout');
+    const response = await apiClient.post('/api/v2/auth/logout');
     return response.data;
   },
 
   reissue: async (refreshToken: string) => {
-    const response = await apiClient.post<{ data: AuthResponse }>('/api/v1/auth/reissue', {
+    const response = await apiClient.post<{ data: AuthResponse }>('/api/v2/auth/reissue', {
       refreshToken,
     });
     return response.data.data;
