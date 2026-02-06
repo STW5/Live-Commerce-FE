@@ -1,10 +1,14 @@
 export interface Product {
   productId: string;
   name: string;
+  description?: string;
   price: number;
   originalPrice?: number;
   category: string;
-  availableQuantity: number;
+  status?: string;
+  companyId?: string;
+  soldOut?: boolean;
+  availableQuantity?: number;
   discount?: number;
   image?: string;
 }

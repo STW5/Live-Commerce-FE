@@ -13,7 +13,9 @@ apiClient.interceptors.request.use(
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('accessToken');
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+        // Bearer가 이미 포함되어 있는지 확인
+        const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        config.headers.Authorization = authToken;
       }
     }
     return config;

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface CartItem {
   productId: string;
@@ -65,6 +65,8 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'cart-storage',
+      storage: createJSONStorage(() => typeof window !== 'undefined' ? localStorage : undefined as any),
+      skipHydration: true,
     }
   )
 );

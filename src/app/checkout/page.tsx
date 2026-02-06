@@ -56,23 +56,15 @@ export default function CheckoutPage() {
     setIsProcessing(true);
 
     try {
-      // 1. 주문 생성
-      const orderItems = items.map(item => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-      }));
+      // 1. 첫 번째 상품으로 주문 생성 (현재 백엔드는 단일 상품 주문만 지원)
+      const firstItem = items[0];
 
       const orderData = {
-        items: orderItems,
-        shippingAddress: {
-          recipientName: formData.name,
-          phoneNumber: formData.phone,
-          address: formData.address,
-          detailAddress: formData.detailAddress,
-          request: formData.request,
-        },
-        totalAmount: getTotalPrice(),
+        productId: firstItem.productId,
+        orderQuantity: firstItem.quantity,
+        requirement: formData.request || '',
+        broadcastId: null,
+        couponId: null,
       };
 
       const order = await orderApi.createOrder(orderData);
