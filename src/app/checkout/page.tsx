@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -29,10 +29,11 @@ export default function CheckoutPage() {
   });
 
   // 로그인 확인
-  if (!isAuthenticated()) {
-    router.push('/login?redirect=/checkout');
-    return null;
-  }
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      router.push('/login?redirect=/checkout');
+    }
+  }, [isAuthenticated, router]);
 
   if (items.length === 0) {
     return (
@@ -113,8 +114,8 @@ export default function CheckoutPage() {
               <Card className="p-6">
                 <h2 className="mb-4 text-xl font-bold">주문 상품</h2>
                 <div className="divide-y">
-                  {items.map((item) => (
-                    <div key={item.productId} className="flex justify-between py-4">
+                  {items.map((item, index) => (
+                    <div key={`${item.productId}-${index}`} className="flex justify-between py-4">
                       <div>
                         <p className="font-semibold">{item.name}</p>
                         <p className="text-sm text-gray-600">수량: {item.quantity}개</p>
